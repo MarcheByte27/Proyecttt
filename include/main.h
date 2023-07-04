@@ -52,8 +52,10 @@ const int stepsPerRevolution = 400;
 Stepper myStepper(stepsPerRevolution, 33, 25, 26, 27);
 int lockState; // 0 cerrada -- 1 abierta
 int botonPulsado = 0;
-int posibleAbrir = 0;
+int posibleCerrar = 0;
 int tareaCreada = 0;
+int pinPoten = 4;
+int potenStatus = 0;
 
 // Declaracion de funciones/tareas
 void TaskLeerNFC(void *pvParameters);

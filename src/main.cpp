@@ -142,7 +142,7 @@ void TaskLeerNFC(void *pvParameters)
                     Serial.println("LECTURA CORRECTA.");
                     if (botonPulsado)
                     {
-                      posibleAbrir = 1;
+                      posibleCerrar = 1;
                       botonPulsado = 0;
                     }
                     else
@@ -209,30 +209,39 @@ void TaskButton(void *pvParameters)
 {
   Serial.println("BOTÓN PULSADO");
   detachInterrupt(13);
-  if (posibleAbrir)
+  if (posibleCerrar)
   {
-    posibleAbrir = 0;
+    posibleCerrar = 0;
     botonPulsado = 0;
-    Serial.println("Abrir/Cerrar por boton");
+    Serial.println("Cerrar por boton");
     AbrirPuerta();
   }
-  else
+  else if ( lockState == 1) //su puerta está abierta
   {
     botonPulsado = 1;
     for (int i = 0; i < 10; i++)
     {
       encenderLed(0, 0, 150, 500);
       encenderLed(0, 0, 0, 500);
-      if (posibleAbrir)
+      if (posibleCerrar)
         break;
     }
-    if (!posibleAbrir)
+    if (!posibleCerrar)
       Serial.println("Tiempo de espera acabado");
     botonPulsado = 0;
+  }
+  else{
+    Serial.println("Puerta cerrada, no se puede realizar dicha acción");
+    for (int i = 0; i < 3; i++)
+    {
+      encenderLed(150, 0, 150, 500);
+      encenderLed(0, 0, 0, 0);
+    }
   }
   attachInterrupt(13, buttonFunction, FALLING);
   tareaCreada = 0;
   vTaskDelete(xButton);
+  for(;;);
 }
 
 // FUNCIONES DE AYUDA
@@ -247,12 +256,15 @@ void encenderLed(int R, int G, int B, int time)
 
 void AbrirPuerta()
 {
+  
   encenderLed(0, 150, 0, 300);
   encenderLed(0, 0, 0, 0);
-
-  if (lockState)
+  potenStatus = analogRead(pinPoten);
+  if (lockState && potenStatus == 4000)
   {
-    Serial.println("Abriendo puerta...");
+
+    Serial.println("cerrando puerta.");
+    analogRead(pinPoten);
     myStepper.step(250);
     lockState = 0;
   }
