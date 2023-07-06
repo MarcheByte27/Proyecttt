@@ -35,6 +35,9 @@ static String IP = "";
 AsyncWebServer server(80);
 static String answer = "";
 static String answerNoModif = "";
+static int timeReconnectFull =  300;
+static int timeReconnectMid =  60;
+TimerHandle_t handle_Wifikeepalive=NULL;
 
 // variables del Kit
 static String ZONA = "";
@@ -44,6 +47,7 @@ uint8_t keyA[6]; // ClaveA
 uint8_t keyB[6]; // ClaveB
 uint8_t CONTRASENA[12];
 int timeToupdateUids = 30;
+
 // LED
 Adafruit_NeoPixel pixels(1, 14, NEO_RGB + NEO_KHZ800);
 
@@ -54,7 +58,7 @@ int lockState; // 0 cerrada -- 1 abierta
 int botonPulsado = 0;
 int posibleCerrar = 0;
 int tareaCreada = 0;
-int pinPoten = 4;
+int pinPoten = 35;
 int potenStatus = 0;
 
 // Declaracion de funciones/tareas
@@ -62,7 +66,7 @@ void TaskLeerNFC(void *pvParameters);
 void TaskWaitToUids(void *pvParameters);
 void TaskButton(void *pvParameters);
 xTaskHandle xLeerNFC;
-xTaskHandle xWaitToUids;
+xTaskHandle xConnectToserver;
 xTaskHandle xButton;
 void InicializarVariables();
 void procSSID(AsyncWebServerRequest *request);
@@ -73,9 +77,11 @@ void procContrasena(String input);
 void initServer();
 void updateUidsVetados();
 void AbrirPuerta();
+void vueltas(int v);
 boolean estaUidVetado(uint8_t uid[], uint8_t UidLength);
 void IRAM_ATTR buttonFunction();
 void encenderLed(int R, int G, int B, int time);
+void TimerReconect_wifi(void *arg);
 
 // para redirigir
 static String paginaNoModif = "<!DOCTYPE html>\

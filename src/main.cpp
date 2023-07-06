@@ -22,13 +22,35 @@ void setup()
   deleteFile(SPIFFS, "/WebServer.html");
   deleteFile(SPIFFS, "/NoModif.html");
   deleteFile(SPIFFS, "/PASS.txt");
+  deleteFile(SPIFFS, "/LOCKSTATE.txt");
 
   //-- Se cargan en la parte de inicializar variables
 
   InicializarVariables();
   initServer();
 
-  myStepper.setSpeed(50);
+  handle_Wifikeepalive = xTimerCreate("reconect wifi", (timeReconnectFull * 1000), pdTRUE, NULL, TimerReconect_wifi);
+  xTimerStart(handle_Wifikeepalive, 10);
+
+  myStepper.setSpeed(30);
+
+  // Cerrar en caso de ambigüedad
+  potenStatus = analogRead(pinPoten);
+  if (potenStatus >= 3800)
+    Serial.println("Puerta abierta");
+  else if (potenStatus <= 200)
+    Serial.println("Puerta cerrada");
+  else
+  {
+    for (;;)
+    {
+      if (analogRead(pinPoten) <= 100)
+        break;
+      Serial.println("10 pasos mas cerrar");
+      vueltas(10);
+    }
+    Serial.println("Puerta cerrada correctamente");
+  }
 
   pinMode(13, INPUT_PULLUP);
   attachInterrupt(13, buttonFunction, FALLING);
@@ -38,14 +60,9 @@ void setup()
       4096,
       NULL, 4,
       &xLeerNFC);
-  xTaskCreate(
-      TaskWaitToUids, "TaskWaitToUids",
-      4096,
-      NULL, 5,
-      &xWaitToUids);
 
   // se enciende azul para decir que está correcto
-  encenderLed(0, 0, 150, 1000);
+  encenderLed(0, 0, 255, 1000);
   encenderLed(0, 0, 0, 0);
 }
 
@@ -168,9 +185,9 @@ void TaskLeerNFC(void *pvParameters)
 
         if (!fini) // No se ha abierto la puerta
         {
-          encenderLed(150, 0, 0, 300);
+          encenderLed(255, 0, 0, 300);
           encenderLed(0, 0, 0, 300);
-          encenderLed(150, 0, 0, 300);
+          encenderLed(255, 0, 0, 300);
           encenderLed(0, 0, 0, 0);
         }
 
@@ -180,9 +197,9 @@ void TaskLeerNFC(void *pvParameters)
       }
       else
       {
-        encenderLed(150, 0, 0, 300);
+        encenderLed(255, 0, 0, 300);
         encenderLed(0, 0, 0, 300);
-        encenderLed(150, 0, 0, 300);
+        encenderLed(255, 0, 0, 300);
         encenderLed(0, 0, 0, 0);
 
         Serial.println("Tarjeta no compatible y/o vetada");
@@ -196,13 +213,46 @@ void TaskLeerNFC(void *pvParameters)
   }
 }
 
-void TaskWaitToUids(void *pvParameters)
+void TaskConnectToServer(void *pvParameters)
 {
-  for (;;)
+  vTaskSuspend(xLeerNFC); // Suspendemos tarea de lectura
+  detachInterrupt(13);    // Paramos interrupción de botón
+  encenderLed(255, 0, 0, 0);
+
+  WiFi.disconnect();
+  WiFi.mode(WIFI_STA);
+  // WiFi.softAP(SSID.c_str(), PASSWORD.c_str());
+  WiFi.begin(RouterSsid.c_str(), RouterPass.c_str());
+  Serial.println("Conectando a servidor...");
+  int i = 0;
+  while ((i < 10) && (WiFi.status() != WL_CONNECTED))
   {
-    vTaskDelay(timeToupdateUids * 1000);
-    updateUidsVetados();
+    delay(500);
+    Serial.print(".");
+    i++;
   }
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    updateUidsVetados();
+    xTimerChangePeriod(handle_Wifikeepalive, (timeReconnectFull * 1000), 0);
+    encenderLed(0, 0, 0, 300);
+    encenderLed(0, 255, 0, 300);
+    encenderLed(0, 0, 0, 0);
+  }
+  else
+  {
+    xTimerChangePeriod(handle_Wifikeepalive, (timeReconnectMid * 1000), 0);
+    encenderLed(0, 0, 0, 300);
+    encenderLed(255, 255, 0, 300);
+    encenderLed(0, 0, 0, 0);
+  }
+  WiFi.disconnect();
+  initServer();
+
+  vTaskResume(xLeerNFC);                        // Activamos tarea de lectura
+  attachInterrupt(13, buttonFunction, FALLING); // Activamos interrupcion
+  vTaskDelete(xConnectToserver);
 }
 
 void TaskButton(void *pvParameters)
@@ -216,12 +266,12 @@ void TaskButton(void *pvParameters)
     Serial.println("Cerrar por boton");
     AbrirPuerta();
   }
-  else if ( lockState == 1) //su puerta está abierta
+  else if (analogRead(pinPoten) >= 3800) // su puerta está abierta
   {
     botonPulsado = 1;
     for (int i = 0; i < 10; i++)
     {
-      encenderLed(0, 0, 150, 500);
+      encenderLed(0, 0, 255, 500);
       encenderLed(0, 0, 0, 500);
       if (posibleCerrar)
         break;
@@ -230,18 +280,44 @@ void TaskButton(void *pvParameters)
       Serial.println("Tiempo de espera acabado");
     botonPulsado = 0;
   }
-  else{
+  else
+  {
     Serial.println("Puerta cerrada, no se puede realizar dicha acción");
     for (int i = 0; i < 3; i++)
     {
-      encenderLed(150, 0, 150, 500);
+      encenderLed(255, 0, 255, 500);
       encenderLed(0, 0, 0, 0);
     }
   }
   attachInterrupt(13, buttonFunction, FALLING);
   tareaCreada = 0;
   vTaskDelete(xButton);
-  for(;;);
+  for (;;)
+    ;
+}
+
+// Timers e Interrupciones
+
+void IRAM_ATTR buttonFunction()
+{
+  if (!tareaCreada)
+  {
+    xTaskCreate(
+        TaskButton, "TaskButton",
+        4096,
+        NULL, 6,
+        &xButton);
+    tareaCreada = 1;
+  }
+}
+
+void TimerReconect_wifi(void *arg)
+{
+  xTaskCreate(
+      TaskConnectToServer, "TaskConnectToServer",
+      4096,
+      NULL, 5,
+      &xConnectToserver);
 }
 
 // FUNCIONES DE AYUDA
@@ -254,27 +330,42 @@ void encenderLed(int R, int G, int B, int time)
     vTaskDelay(time);
 }
 
+void vueltas(int v)
+{
+  myStepper.step(v);
+  digitalWrite(33, LOW);
+  digitalWrite(25, LOW);
+  digitalWrite(26, LOW);
+  digitalWrite(27, LOW);
+}
+
 void AbrirPuerta()
 {
-  
-  encenderLed(0, 150, 0, 300);
-  encenderLed(0, 0, 0, 0);
-  potenStatus = analogRead(pinPoten);
-  if (lockState && potenStatus == 4000)
-  {
 
-    Serial.println("cerrando puerta.");
-    analogRead(pinPoten);
-    myStepper.step(250);
-    lockState = 0;
-  }
-  else
+  encenderLed(0, 255, 0, 300);
+  potenStatus = analogRead(pinPoten);
+  if (potenStatus >= 3800)
   {
-    Serial.println("Cerrando puerta...");
-    myStepper.step(-250);
-    lockState = 1;
+    for (;;)
+    {
+      if (analogRead(pinPoten) <= 100)
+        break;
+      Serial.println("10 pasos mas cerrar");
+      vueltas(10);
+    }
   }
-  vTaskDelay(2000);
+  else if (potenStatus <= 200)
+  {
+    for (;;)
+    {
+      if (analogRead(pinPoten) >= 4000)
+        break;
+      Serial.println("10 pasos mas abrir");
+      vueltas(-10);
+    }
+  }
+  vTaskDelay(500);
+  encenderLed(0, 0, 0, 0);
 }
 
 void initServer()
@@ -282,33 +373,9 @@ void initServer()
 
   Serial.println("Configuring access point...");
 
-  WiFi.mode(WIFI_AP_STA);
+  WiFi.mode(WIFI_AP);
   WiFi.softAP(SSID.c_str(), PASSWORD.c_str());
-  WiFi.begin(RouterSsid.c_str(), RouterPass.c_str());
   Serial.println("Conectando...");
-  int i = 0;
-  while ((i < 5) && (WiFi.status() != WL_CONNECTED))
-  {
-    delay(500);
-    Serial.print(".");
-    /*if (i == 10)
-    {
-      ESP.restart();
-    }*/
-    i++;
-  }
-  WiFi.setAutoReconnect(true);
-  if (i < 5)
-  {
-    Serial.println("");
-    Serial.print("Iniciado STA:\t");
-    Serial.println(RouterSsid);
-  }
-  else
-  {
-    Serial.println("");
-    Serial.println("La red " + RouterSsid + " no es accesible");
-  }
 
   IPAddress myIP = WiFi.softAPIP();
   String h = IP + "/";
@@ -364,10 +431,6 @@ void InicializarVariables()
   {
     writeFile(SPIFFS, "/UIDsVetados.txt", "");
   }
-  if (!SPIFFS.exists("/LOCKSTATE.txt"))
-  {
-    writeFile(SPIFFS, "/LOCKSTATE.txt", "1");
-  }
 
   answerNoModif = readFile(SPIFFS, "/NoModif.html");
   answer = readFile(SPIFFS, "/WebServer.html");
@@ -377,7 +440,6 @@ void InicializarVariables()
   PUERTA = readFile(SPIFFS, "/DOOR.txt");
   procContrasena(readFile(SPIFFS, "/CONTRASENA.txt"));
   uidsVetados = readFile(SPIFFS, "/UIDsVetados.txt");
-  lockState = (readFile(SPIFFS, "/LOCKSTATE.txt")).toInt();
 
   Serial.print("Uids vetados:");
   Serial.println(uidsVetados);
@@ -414,9 +476,8 @@ void procContrasena(String input)
 
 void updateUidsVetados()
 {
-  vTaskSuspend(xLeerNFC); // Suspendemos tarea de lectura
+
   Serial.println("Conectando con servidor...");
-  encenderLed(150, 0, 0, 300);
   WiFiClient client;
   if (client.connect(serverAddress.c_str(), serverPort))
   {
@@ -453,10 +514,6 @@ void updateUidsVetados()
 
   client.stop();
   Serial.println("Conexión cerrada");
-  encenderLed(0, 0, 0, 300);
-  encenderLed(0, 150, 0, 300);
-  encenderLed(0, 0, 0, 0);
-
   vTaskResume(xLeerNFC);
 }
 
@@ -474,19 +531,6 @@ boolean estaUidVetado(uint8_t uid[], uint8_t UidLength)
     return true;
   else
     return false;
-}
-
-void IRAM_ATTR buttonFunction()
-{
-  if (!tareaCreada)
-  {
-    xTaskCreate(
-        TaskButton, "TaskButton",
-        4096,
-        NULL, 6,
-        &xButton);
-    tareaCreada = 1;
-  }
 }
 
 // PROCESAR API's
