@@ -40,7 +40,6 @@
 
 		form label {
 			display: inline-block;
-			width: 150px;
 			font-weight: bold;
 			margin-right: 10px;
 		}
@@ -139,6 +138,8 @@
 
 <body>
 	<h1>CONFIGURACIÓN KIT CERRADURAS NFC</h1>
+
+	<h3> RED WIFI </h3>
 	<form action='/changeSSID' method='post'>
 		<ul>
 			<li>
@@ -153,8 +154,40 @@
 		</ul>
 	</form>
 	<br>
+	<h3> ROUTER </h3>
+	<form action='/changeRouter' method='post'>
+		<ul>
+			<li>
+				<label> SSID Router:</label>
+				<input type='text' name='ssidRouter' required>
+			</li>
+			<li>
+				<label> Contraseña Router: </label>
+				<input type='password' name='passRouter' required>
+			</li>
+			<button type='submit'> Enviar nuevo router</button>
+		</ul>
+	</form>
+	<br>
+	<h3> SERVER </h3>
+	<form action='/changeServer' method='post'>
+		<ul>
+			<li>
+				<label> IP Server: </label>
+				<input type='text' name='ipServer' maxlength="15" required>
+			</li>
+			<li>
+				<label> Puerto server: </label>
+				<input type='number' name='portServer' min="0" max="65535" required>
+			</li>
+			<button type='submit'> Enviar nuevo servidor </button>
+		</ul>
+	</form>
+	<br>
+
+	<h3> UBICACIÓN </h3>
 	<form action='/location' method='post'>
-		<h3> UBICACIÓN </h3>
+		
 		<ul>
 			<li>
 				<label>Escoge una zona:</label>

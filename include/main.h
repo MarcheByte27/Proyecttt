@@ -21,21 +21,21 @@
 
 // Variables PN532
 uint8_t DatoRecibido[4];	 // Para almacenar los datos
-PN532_HSU pn532hsu(Serial2); // Declara objeto de comunicação utilizando Serial2
+PN532_HSU pn532hsu(Serial2); // Declara objeto de comunicacion
 PN532 nfc(pn532hsu);
 
 // variables para la red
-static String RouterSsid = "Repe_Huawei";
-static String RouterPass = "657213861";
-static String serverAddress = "192.168.3.4";
-const int serverPort = 8080;
+static String RouterSsid = "";
+static String RouterPass = "";
+static String serverAddress = "";
+int serverPort = 0;
 static String SSID = "";
 static String PASSWORD = "";
 static String IP = "";
 AsyncWebServer server(80);
 static String answer = "";
 static String answerNoModif = "";
-static int timeReconnectFull =  300;
+static int timeReconnectFull =  300; //5 minutos
 static int timeReconnectMid =  60;
 TimerHandle_t handle_Wifikeepalive=NULL;
 
@@ -54,7 +54,6 @@ Adafruit_NeoPixel pixels(1, 14, NEO_RGB + NEO_KHZ800);
 // Variables motor
 const int stepsPerRevolution = 400;
 Stepper myStepper(stepsPerRevolution, 33, 25, 26, 27);
-int lockState; // 0 cerrada -- 1 abierta
 int botonPulsado = 0;
 int posibleCerrar = 0;
 int tareaCreada = 0;
@@ -73,9 +72,11 @@ void procSSID(AsyncWebServerRequest *request);
 void procLocation(AsyncWebServerRequest *request);
 void procCreateNFC(AsyncWebServerRequest *request);
 void procPass(AsyncWebServerRequest *request);
+void procRouter(AsyncWebServerRequest *request);
+void procServer(AsyncWebServerRequest *request);
 void procContrasena(String input);
 void initServer();
-void updateUidsVetados();
+int updateUidsVetados();
 void AbrirPuerta();
 void vueltas(int v);
 boolean estaUidVetado(uint8_t uid[], uint8_t UidLength);
@@ -139,7 +140,6 @@ static String pagina = "<!DOCTYPE html >\
 		}\
 		form label {\
 			display: inline-block;\
-			width: 150px;\
 			font-weight: bold;\
 			margin-right: 10px;\
 		}\
@@ -226,6 +226,7 @@ static String pagina = "<!DOCTYPE html >\
 </head>\
 <body>\
     <h1>CONFIGURACIÓN KIT CERRADURAS NFC</h1>\
+	<h3> RED WIFI </h3>\
     <form action='/changeSSID' method='post'>\
         <ul>\
             <li>\
@@ -240,8 +241,38 @@ static String pagina = "<!DOCTYPE html >\
         </ul>\
     </form>\
     <br>\
-    <form action='/location' method='post'>\
-        <h3> UBICACIÓN </h3>\
+	<h3> ROUTER </h3>\
+	<form action='/changeRouter' method='post'>\
+		<ul>\
+			<li>\
+				<label> SSID Router:</label>\
+				<input type='text' name='ssidRouter' required>\
+			</li>\
+			<li>\
+				<label> Contraseña Router: </label>\
+				<input type='password' name='passRouter' required>\
+			</li>\
+			<button type='submit'> Enviar nuevo router</button>\
+		</ul>\
+	</form>\
+	<br>\
+	<h3> SERVER </h3>\
+	<form action='/changeServer' method='post'>\
+		<ul>\
+			<li>\
+				<label> IP Server: </label>\
+				<input type='text' name='ipServer' maxlength='15' required>\
+			</li>\
+			<li>\
+				<label> Puerto server: </label>\
+				<input type='number' name='portServer' min='0' max='65535' required>\
+			</li>\
+			<button type='submit'> Enviar nuevo servidor </button>\
+		</ul>\
+	</form>\
+	<br>\
+	<h3> UBICACIÓN </h3>\
+	<form action='/location' method='post'>\
         <ul>\
             <li>\
                 <label>Escoge una zona:</label>\

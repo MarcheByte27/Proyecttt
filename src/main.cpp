@@ -22,7 +22,6 @@ void setup()
   deleteFile(SPIFFS, "/WebServer.html");
   deleteFile(SPIFFS, "/NoModif.html");
   deleteFile(SPIFFS, "/PASS.txt");
-  deleteFile(SPIFFS, "/LOCKSTATE.txt");
 
   //-- Se cargan en la parte de inicializar variables
 
@@ -37,27 +36,31 @@ void setup()
   // Cerrar en caso de ambigüedad
   potenStatus = analogRead(pinPoten);
   if (potenStatus >= 3800)
-    Serial.println("Puerta abierta");
-  else if (potenStatus <= 200)
     Serial.println("Puerta cerrada");
+  else if (potenStatus <= 200)
+    Serial.println("Puerta abierta");
   else
   {
-    for (;;)
     {
-      if (analogRead(pinPoten) <= 100)
-        break;
-      Serial.println("10 pasos mas cerrar");
-      vueltas(10);
+      encenderLed(0, 0, 255, 300); // azul
+      Serial.println("Cerrando...");
+      for (;;)
+      {
+        if (analogRead(pinPoten) >= 4000)
+          break;
+        vueltas(-10);
+      }
     }
     Serial.println("Puerta cerrada correctamente");
   }
+  encenderLed(0, 0, 0, 0);
 
   pinMode(13, INPUT_PULLUP);
   attachInterrupt(13, buttonFunction, FALLING);
 
   xTaskCreate(
       TaskLeerNFC, "TaskLeerNFC",
-      4096,
+      8192,
       NULL, 4,
       &xLeerNFC);
 
@@ -111,17 +114,6 @@ void TaskLeerNFC(void *pvParameters)
         {
           if (fini)
             break;
-          // Imprime por consola sector y bloques
-          /*{
-            Serial.print("\n --------- \n Sector ");
-            Serial.print(i, DEC);
-            Serial.print("(Blocks ");
-            Serial.print(i * 4, DEC);
-            Serial.print("..");
-            Serial.print(i * 4 + 3, DEC);
-            Serial.println(") Autentificado");
-          }*/
-
           success = nfc.mifareclassic_AuthenticateBlock(uid, uidLength, (i * 4), 1, keyA); // Verifica claves
 
           if (success)
@@ -138,13 +130,6 @@ void TaskLeerNFC(void *pvParameters)
               success = nfc.mifareclassic_ReadDataBlock(i * 4 + x, data); // Lectura bloque x del sector i
               if (success)
               {
-
-                /*Serial.print("Lectura realizada del bloque ");
-                Serial.print(i * 4 + x, DEC);
-                Serial.print(": ");
-                nfc.PrintHexChar(data, 16); // Imprime lo que está escrito en el bloque x
-                */
-
                 // Verificar si abre puerta o si vacio
                 for (int y = 0; y <= 15; y = y + 2)
                 {
@@ -161,6 +146,7 @@ void TaskLeerNFC(void *pvParameters)
                     {
                       posibleCerrar = 1;
                       botonPulsado = 0;
+                      vTaskSuspend(xLeerNFC);
                     }
                     else
                       AbrirPuerta();
@@ -185,25 +171,34 @@ void TaskLeerNFC(void *pvParameters)
 
         if (!fini) // No se ha abierto la puerta
         {
+          if (botonPulsado == 1)
+          {
+            vTaskDelete(xButton);
+            attachInterrupt(13, buttonFunction, FALLING);
+            tareaCreada = 0;
+            botonPulsado = 0;
+          }
           encenderLed(255, 0, 0, 300);
           encenderLed(0, 0, 0, 300);
           encenderLed(255, 0, 0, 300);
           encenderLed(0, 0, 0, 0);
+          Serial.println("Tarjeta no compatible y/o vetada");
         }
 
-        Serial.println("SEPARE LA TARJETA. En 3 segundos se podrá leer la tarjeta");
+        Serial.println("SEPARE LA TARJETA. En 3 segundos podrá leer otra tarjeta");
         vTaskDelay(3000);
         Serial.println("------- \n\n Esperando tarjeta ISO14443A ...");
       }
       else
       {
+
         encenderLed(255, 0, 0, 300);
         encenderLed(0, 0, 0, 300);
         encenderLed(255, 0, 0, 300);
         encenderLed(0, 0, 0, 0);
 
         Serial.println("Tarjeta no compatible y/o vetada");
-        Serial.println("SEPARE LA TARJETA. En 3 segundos se podrá leer la tarjeta");
+        Serial.println("SEPARE LA TARJETA. En 3 segundos podrá leer otra tarjeta");
         vTaskDelay(3000);
         Serial.println("------- \n\n Esperando tarjeta ISO14443A ...");
       }
@@ -217,11 +212,10 @@ void TaskConnectToServer(void *pvParameters)
 {
   vTaskSuspend(xLeerNFC); // Suspendemos tarea de lectura
   detachInterrupt(13);    // Paramos interrupción de botón
-  encenderLed(255, 0, 0, 0);
+  encenderLed(255, 100, 0, 0);
 
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
-  // WiFi.softAP(SSID.c_str(), PASSWORD.c_str());
   WiFi.begin(RouterSsid.c_str(), RouterPass.c_str());
   Serial.println("Conectando a servidor...");
   int i = 0;
@@ -234,15 +228,24 @@ void TaskConnectToServer(void *pvParameters)
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    updateUidsVetados();
-    xTimerChangePeriod(handle_Wifikeepalive, (timeReconnectFull * 1000), 0);
-    encenderLed(0, 0, 0, 300);
-    encenderLed(0, 255, 0, 300);
-    encenderLed(0, 0, 0, 0);
+    if (updateUidsVetados() == 1)
+    {
+      xTimerChangePeriod(handle_Wifikeepalive, (timeReconnectFull * 1000), 0);
+      encenderLed(0, 0, 0, 300);
+      encenderLed(0, 255, 0, 300);
+      encenderLed(0, 0, 0, 0);
+    }
+    else
+    {
+      xTimerChangePeriod(handle_Wifikeepalive, (timeReconnectMid * 1000) / portTICK_PERIOD_MS, 0);
+      encenderLed(0, 0, 0, 300);
+      encenderLed(255, 255, 0, 300);
+      encenderLed(0, 0, 0, 0);
+    }
   }
   else
   {
-    xTimerChangePeriod(handle_Wifikeepalive, (timeReconnectMid * 1000), 0);
+    xTimerChangePeriod(handle_Wifikeepalive, (timeReconnectMid * 1000) / portTICK_PERIOD_MS, 0);
     encenderLed(0, 0, 0, 300);
     encenderLed(255, 255, 0, 300);
     encenderLed(0, 0, 0, 0);
@@ -253,31 +256,44 @@ void TaskConnectToServer(void *pvParameters)
   vTaskResume(xLeerNFC);                        // Activamos tarea de lectura
   attachInterrupt(13, buttonFunction, FALLING); // Activamos interrupcion
   vTaskDelete(xConnectToserver);
+  for(;;);
 }
 
 void TaskButton(void *pvParameters)
 {
   Serial.println("BOTÓN PULSADO");
   detachInterrupt(13);
+  potenStatus = analogRead(pinPoten);
   if (posibleCerrar)
   {
     posibleCerrar = 0;
     botonPulsado = 0;
     Serial.println("Cerrar por boton");
     AbrirPuerta();
+    vTaskResume(xLeerNFC); // Activamos tarea de lectura
   }
-  else if (analogRead(pinPoten) >= 3800) // su puerta está abierta
+  else if (potenStatus <= 200) // su puerta está abierta
   {
     botonPulsado = 1;
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 8; i++) // espera algo más de 10 segundos
     {
-      encenderLed(0, 0, 255, 500);
-      encenderLed(0, 0, 0, 500);
+      encenderLed(0, 0, 255, 700); // parpadea azul lento
+      encenderLed(0, 0, 0, 700);
       if (posibleCerrar)
         break;
     }
     if (!posibleCerrar)
+    {
       Serial.println("Tiempo de espera acabado");
+      encenderLed(255, 0, 0, 700); // parpadea rojo 1 vez
+      encenderLed(0, 0, 0, 0);
+    }
+    else
+    {
+      Serial.println("Tarjeta leída correctamente");
+      encenderLed(0, 255, 0, 700); // parpadea verde 1 vez
+      encenderLed(0, 0, 0, 0);
+    }
     botonPulsado = 0;
   }
   else
@@ -285,7 +301,7 @@ void TaskButton(void *pvParameters)
     Serial.println("Puerta cerrada, no se puede realizar dicha acción");
     for (int i = 0; i < 3; i++)
     {
-      encenderLed(255, 0, 255, 500);
+      encenderLed(255, 0, 0, 300); // parpadea rojo
       encenderLed(0, 0, 0, 0);
     }
   }
@@ -342,25 +358,30 @@ void vueltas(int v)
 void AbrirPuerta()
 {
 
-  encenderLed(0, 255, 0, 300);
   potenStatus = analogRead(pinPoten);
+  // abrir
   if (potenStatus >= 3800)
   {
+    encenderLed(0, 255, 255, 300); // azul verdoso
+    Serial.println("Abriendo...");
+
     for (;;)
     {
       if (analogRead(pinPoten) <= 100)
         break;
-      Serial.println("10 pasos mas cerrar");
       vueltas(10);
     }
   }
+  // cerrar
   else if (potenStatus <= 200)
   {
+    encenderLed(0, 0, 255, 300); // azul
+    Serial.println("Cerrando...");
     for (;;)
     {
       if (analogRead(pinPoten) >= 4000)
         break;
-      Serial.println("10 pasos mas abrir");
+
       vueltas(-10);
     }
   }
@@ -383,6 +404,8 @@ void initServer()
   server.on("/changeSSID", HTTP_POST, procSSID);
   server.on("/location", HTTP_POST, procLocation);
   server.on("/changePass", HTTP_POST, procPass);
+  server.on("/changeServer", HTTP_POST, procServer);
+  server.on("/changeRouter", HTTP_POST, procRouter);
   server.onNotFound([](AsyncWebServerRequest *request)
                     { request->send(400, "text/plain", "Not found"); });
 
@@ -397,6 +420,7 @@ void initServer()
 void InicializarVariables()
 {
 
+  // red wifi
   if (!SPIFFS.exists("/SSID.txt"))
   {
     String comando = "ConfigNFC";
@@ -415,6 +439,30 @@ void InicializarVariables()
   {
     writeFile(SPIFFS, "/NoModif.html", (char *)paginaNoModif.c_str());
   }
+
+  // server
+  if (!SPIFFS.exists("/IPServer.txt"))
+  {
+    writeFile(SPIFFS, "/IPServer.txt", (char *)serverAddress.c_str());
+  }
+
+  if (!SPIFFS.exists("/PortServer.txt"))
+  {
+    writeFile(SPIFFS, "/PortServer.txt", (char *)String(serverPort).c_str());
+  }
+
+  // router
+  if (!SPIFFS.exists("/RouterSSID.txt"))
+  {
+    writeFile(SPIFFS, "/RouterSSID.txt", (char *)RouterSsid.c_str());
+  }
+
+  if (!SPIFFS.exists("/RouterPASS.txt"))
+  {
+    writeFile(SPIFFS, "/RouterPASS.txt", (char *)RouterPass.c_str());
+  }
+
+  // Config de cerradura
   if (!SPIFFS.exists("/ZONE.txt"))
   {
     writeFile(SPIFFS, "/ZONE.txt", "1");
@@ -436,15 +484,31 @@ void InicializarVariables()
   answer = readFile(SPIFFS, "/WebServer.html");
   SSID = readFile(SPIFFS, "/SSID.txt");
   PASSWORD = readFile(SPIFFS, "/PASS.txt");
+
+  serverAddress = readFile(SPIFFS, "/IPServer.txt");
+  serverPort = (readFile(SPIFFS, "/IPServer.txt")).toInt();
+  RouterSsid = readFile(SPIFFS, "/RouterSSID.txt");
+  RouterPass = readFile(SPIFFS, "/RouterPASS.txt");
+
   ZONA = readFile(SPIFFS, "/ZONE.txt");
   PUERTA = readFile(SPIFFS, "/DOOR.txt");
   procContrasena(readFile(SPIFFS, "/CONTRASENA.txt"));
   uidsVetados = readFile(SPIFFS, "/UIDsVetados.txt");
 
+  // Se borraría en producto final
+  Serial.print("Router: ");
+  Serial.print(RouterSsid);
+  Serial.print(" - ");
+  Serial.println(RouterPass);
+
+  Serial.print("Server: ");
+  Serial.print(serverAddress);
+  Serial.print(":");
+  Serial.println(serverPort);
+
   Serial.print("Uids vetados:");
   Serial.println(uidsVetados);
 
-  // Se borraría en producto final
   Serial.print("PASS: ");
   Serial.println(PASSWORD);
   Serial.print("ZONA ACTUAL: ");
@@ -474,9 +538,9 @@ void procContrasena(String input)
   }
 }
 
-void updateUidsVetados()
+int updateUidsVetados()
 {
-
+  int res = 1;
   Serial.println("Conectando con servidor...");
   WiFiClient client;
   if (client.connect(serverAddress.c_str(), serverPort))
@@ -500,6 +564,7 @@ void updateUidsVetados()
     if (newUids == "")
     {
       Serial.println("Respuesta del servidor vacío");
+      res = 0;
     }
     else
     {
@@ -510,11 +575,14 @@ void updateUidsVetados()
     }
   }
   else
+  {
     Serial.println("Error al conectar al servidor");
-
+    res = 0;
+  }
   client.stop();
   Serial.println("Conexión cerrada");
   vTaskResume(xLeerNFC);
+  return res;
 }
 
 boolean estaUidVetado(uint8_t uid[], uint8_t UidLength)
@@ -612,6 +680,42 @@ void procPass(AsyncWebServerRequest *request)
   }
   procContrasena(cont);
   writeFile(SPIFFS, "/CONTRASENA.txt", cont.c_str());
+
+  request->send(200, "text/html", answerNoModif);
+}
+
+void procServer(AsyncWebServerRequest *request)
+{
+  String ipS = request->arg("ipServer");
+  String portS = request->arg("portServer");
+
+  writeFile(SPIFFS, "/IPServer.txt", (char *)ipS.c_str());
+  writeFile(SPIFFS, "/PortServer.txt", (char *)portS.c_str());
+
+  serverAddress = ipS;
+  serverPort = portS.toInt();
+
+  Serial.print("IP server: ");
+  Serial.println(serverAddress);
+  Serial.print("Port server: ");
+  Serial.println(serverPort);
+
+  request->send(200, "text/html", answerNoModif);
+}
+
+void procRouter(AsyncWebServerRequest *request)
+{
+  String ssidR = request->arg("ssidRouter");
+  String passR = request->arg("passRouter");
+
+  writeFile(SPIFFS, "/RouterSSID.txt", (char *)ssidR.c_str());
+  writeFile(SPIFFS, "/RouterPASS.txt", (char *)passR.c_str());
+
+  RouterSsid = ssidR;
+  RouterPass = passR;
+
+  Serial.println("SSID Router:" + ssidR);
+  Serial.println("PASS Router:" + passR);
 
   request->send(200, "text/html", answerNoModif);
 }
