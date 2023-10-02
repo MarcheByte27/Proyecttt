@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<meta http-equiv='Content-Type' content='text/html; charset=UTF-8' />
+<html>
+    <body>
+        <h1>Módulo NFC </h1>
+        <form action='/changeSSID' method='post'>
+            <ul>
+                <li>
+                <label> SSID:</label>
+                <input type='text' name='ssid'>
+                </li>
+                <li>
+                <label>Nueva contraseña: </label>
+                <input type='password' name='pass'>
+                </li>
+                <br>
+                <div class='button'>
+                <button type='submit'> Enviar nueva configuración </button>
+                </div>
+            </ul>
+        </form>
+        <form action='/config' method='post'>
+            <ul>
+                <li>
+                <label> Nº vueltas llave:</label>
+                <input type='text' name='laps'>
+                </li>
+                <li>
+                <label> Grados de Inicio </label>
+                <input type='text' name='init'>
+                </li>
+                <br>
+                <div class='button'>
+                <button type='submit'> Establecer </button>
+                </div>
+            </ul>
+        </form>
+        <div>
+            <button type='submit' formaction='/write'> ESCRIBIR EN TARJETA </button>
+        </div>
+    </body>
+</html>

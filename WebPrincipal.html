@@ -1,22 +1,217 @@
 <!DOCTYPE html>
-<meta http-equiv='Content-Type' content='text/html; charset=UTF-8'/>
 <html>
-    <body>
-        <h1>CONFIGURACIÓNN</h1>
-        <form action='/changeSSID' method='post'>
-            <ul>
-                <li>
-                <label> SSID:</label>
-                <input type='text' name='ssid'>
-                </li>
-                <li>
-                <label>Nueva contraseña: </label>
-                <input type='password' name='pass'>
-                </li>
-                <li class='button'>
-                <button type='submit'> Enviar nueva configuración </button>
-                </li>
-            </ul>
-        </form>
-    </body>
-</html>
+
+<head>
+	<meta http-equiv='Content-Type' content='text/html; charset=UTF-8' />
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			background-color: #f2f2f2;
+			margin: 0;
+			padding: 0;
+		}
+
+		h1 {
+			font-size: 32px;
+			font-weight: bold;
+			text-align: center;
+			margin-top: 50px;
+			margin-bottom: 20px;
+		}
+
+		form {
+			background-color: #ffffff;
+			padding: 20px;
+			border-radius: 10px;
+			box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+			max-width: 500px;
+			margin: 0 auto;
+		}
+
+		form ul {
+			list-style-type: none;
+			padding: 0;
+			margin: 0;
+		}
+
+		form li {
+			margin-bottom: 10px;
+		}
+
+		form label {
+			display: inline-block;
+			font-weight: bold;
+			margin-right: 10px;
+		}
+
+		form input[type='text'],
+		form input[type='password'],
+		form input[type='number'] {
+			display: block;
+			width: 100%;
+			padding: 10px;
+			border: 1px solid #ccc;
+			border-radius: 5px;
+			box-sizing: border-box;
+			font-size: 16px;
+			margin-top: 5px;
+		}
+
+		form input[type='button'] {
+			background-color: #007bff;
+			color: #ffffff;
+			padding: 10px 20px;
+			border: none;
+			border-radius: 5px;
+			font-size: 16px;
+			cursor: pointer;
+			margin-top: 10px;
+		}
+
+		form button[type='button']:hover {
+			background-color: #0062cc;
+		}
+
+		form button[type='submit'] {
+			background-color: #007bff;
+			color: #ffffff;
+			padding: 10px 20px;
+			border: none;
+			border-radius: 5px;
+			font-size: 16px;
+			cursor: pointer;
+			margin-top: 10px;
+		}
+
+		form button[type='submit']:hover {
+			background-color: #0062cc;
+		}
+
+		h3 {
+			font-size: 20px;
+			font-weight: bold;
+			margin-top: 30px;
+			margin-bottom: 10px;
+			text-align: center;
+		}
+
+		div {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: space-between;
+			max-width: 500px;
+			margin: 0 auto;
+			margin-top: 20px;
+		}
+
+		div form {
+			flex-basis: 48%;
+			background-color: #ffffff;
+			padding: 20px;
+			border-radius: 10px;
+			box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+			margin-bottom: 20px;
+		}
+
+		div form button[type='submit'] {
+			width: 100%;
+		}
+	</style>
+	<script>
+		function validateHexInput(input) {
+			var inputValue = input.value;
+			var filteredValue = inputValue.replace(/[^a-fA-F0-9]/g, '');
+
+			input.value = filteredValue.toUpperCase();
+		}
+		function validaMin() {
+			if (document.getElementById("hexText").value.length < 24) {
+				alert('ingrese un nombre de minimo 8 caracteres');
+				return false;
+			} else {
+				document.changePass.submit();
+			}
+		}
+	</script>
+
+</head>
+
+<body>
+	<h1>CONFIGURACIÓN KIT CERRADURAS NFC</h1>
+
+	<h3> RED WIFI </h3>
+	<form action='/changeSSID' method='post'>
+		<ul>
+			<li>
+				<label> SSID:</label>
+				<input type='text' name='ssid'>
+			</li>
+			<li>
+				<label>Nueva contraseña: </label>
+				<input type='password' name='pass'>
+			</li>
+			<button type='submit'> Enviar nueva configuración </button>
+		</ul>
+	</form>
+	<br>
+	<h3> ROUTER </h3>
+	<form action='/changeRouter' method='post'>
+		<ul>
+			<li>
+				<label> SSID Router:</label>
+				<input type='text' name='ssidRouter' required>
+			</li>
+			<li>
+				<label> Contraseña Router: </label>
+				<input type='password' name='passRouter' required>
+			</li>
+			<button type='submit'> Enviar nuevo router</button>
+		</ul>
+	</form>
+	<br>
+	<h3> SERVER </h3>
+	<form action='/changeServer' method='post'>
+		<ul>
+			<li>
+				<label> IP Server: </label>
+				<input type='text' name='ipServer' maxlength="15" required>
+			</li>
+			<li>
+				<label> Puerto server: </label>
+				<input type='number' name='portServer' min="0" max="65535" required>
+			</li>
+			<button type='submit'> Enviar nuevo servidor </button>
+		</ul>
+	</form>
+	<br>
+
+	<h3> UBICACIÓN </h3>
+	<form action='/location' method='post'>
+		
+		<ul>
+			<li>
+				<label>Escoge una zona:</label>
+				<input type='number' name='zone' value='1' min='1' max='254' required />
+			</li>
+			<li>
+				<label>Escoge una puerta:</label>
+				<input type='number' name='door' value='1' min='1' max='254' required />
+			</li>
+			<button type='submit'> ELEGIR </button>
+		</ul>
+	</form>
+	<br>
+	<h3> CONFIGURACIÓN PARA TARJETAS </h3>
+	<form action='/changePass' method='post' name="changePass">
+		<ul>
+			<li>
+				<label>Configurar contraseña en cerradura</label>
+				<input type='text' id='hexText' name='pass' oninput='validateHexInput(this)' minlength=24 maxlength=24
+					required />
+			</li>
+			<input type='button' onclick='validaMin()' value='AÑADIR' />
+		</ul>
+	</form>
+</body>
+
+</html>";

@@ -1,0 +1,48 @@
+para comparar los datos de las arrays dinamicos
+
+
+#include <string.h>
+
+void setup() {
+  Serial.begin(9600);
+
+  // Array dinámico de tokens
+  char** tokens = NULL;
+  int tokenCount = 0;
+
+  // Agregar tokens al array dinámico (ejemplo)
+  addToken(&tokens, &tokenCount, "Hola");
+  addToken(&tokens, &tokenCount, "Mundo");
+  addToken(&tokens, &tokenCount, "Arduino");
+
+  // Comparar cada token con un string específico
+  char stringToCompare[] = "Mundo";
+  for (int i = 0; i < tokenCount; i++) {
+    if (strcmp(tokens[i], stringToCompare) == 0) {
+      Serial.print("Token encontrado: ");
+      Serial.println(tokens[i]);
+    }
+  }
+
+  // Liberar la memoria del array de tokens
+  freeTokens(tokens, tokenCount);
+}
+
+void loop() {
+  // El código del bucle principal va aquí
+}
+
+// Función para agregar un token al array dinámico
+void addToken(char*** tokens, int* tokenCount, const char* token) {
+  (*tokenCount)++;
+  *tokens = (char**)realloc(*tokens, sizeof(char*) * (*tokenCount));
+  (*tokens)[*tokenCount - 1] = strdup(token);
+}
+
+// Función para liberar la memoria del array de tokens
+void freeTokens(char** tokens, int tokenCount) {
+  for (int i = 0; i < tokenCount; i++) {
+    free(tokens[i]);
+  }
+  free(tokens);
+}
